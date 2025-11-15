@@ -77,19 +77,51 @@
 			status = 'Exchanging code for access token...';
 			debugInfo.push({
 				step: 'Token exchange starting',
-				endpoint: (gitlab as any).tokenEndpoint,
+				endpoint: `${GITLAB_URL}/oauth/token`,
 				redirectUri: REDIRECT_URI
 			});
 
 			// Exchange authorization code for tokens using PKCE
+			// NON-ARCTIC VERSION - using plain fetch instead of Arctic library
 			let tokens;
 			try {
-				tokens = await (gitlab as any).client.validateAuthorizationCode(
-					(gitlab as any).tokenEndpoint,
-					code,
-					codeVerifier
-				);
-				debugInfo.push({ step: 'Token exchange successful' });
+				// Manual token exchange with fetch instead of Arctic
+				const tokenResponse = await fetch(`${GITLAB_URL}/oauth/token`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded'
+					},
+					body: new URLSearchParams({
+						client_id: GITLAB_CLIENT_ID,
+						code: code,
+						grant_type: 'authorization_code',
+						redirect_uri: REDIRECT_URI,
+						code_verifier: codeVerifier
+					})
+				});
+
+				if (!tokenResponse.ok) {
+					const errorData = await tokenResponse.text();
+					throw new Error(`Token exchange failed: ${tokenResponse.status} ${errorData}`);
+				}
+
+				const tokenData = await tokenResponse.json();
+
+				// Create tokens object compatible with Arctic's interface
+				tokens = {
+					accessToken: () => tokenData.access_token,
+					refreshToken: () => tokenData.refresh_token
+				};
+
+				debugInfo.push({ step: 'Token exchange successful', tokenData });
+
+				// Arctic version (commented out)
+				// tokens = await (gitlab as any).client.validateAuthorizationCode(
+				// 	(gitlab as any).tokenEndpoint,
+				// 	code,
+				// 	codeVerifier
+				// );
+				// debugInfo.push({ step: 'Token exchange successful' });
 			} catch (tokenError: any) {
 				debugInfo.push({
 					step: 'Token exchange failed',
