@@ -3,8 +3,9 @@
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
 	import * as YAML from 'yaml';
-
-	const GITLAB_URL = import.meta.env.VITE_GITLAB_URL;
+	import { authStore } from '$lib/auth/store';
+	import { getProvider } from '$lib/providers';
+	import type { CommitData } from '$lib/providers/types';
 
 	interface ImageUpload {
 		id: string;
@@ -57,21 +58,14 @@
 		if (!accessToken || !selectedRepo) return;
 
 		try {
-			const response = await fetch(
-				`${GITLAB_URL}/api/v4/projects/${selectedRepo.id}/repository/files/pure.yml?ref=${selectedRepo.default_branch || 'main'}`,
-				{
-					headers: {
-						Authorization: `Bearer ${accessToken}`
-					}
-				}
+			const provider = getProvider('gitlab');
+			const data = await provider.getFile(
+				accessToken,
+				selectedRepo.id,
+				'pure.yml',
+				selectedRepo.default_branch || 'main'
 			);
 
-			if (!response.ok) {
-				console.error('Failed to fetch pure.yml');
-				return;
-			}
-
-			const data = await response.json();
 			// Decode base64 content
 			const content = atob(data.content);
 			pureYmlContent = YAML.parse(content);
@@ -198,25 +192,14 @@
 		});
 
 		// Build single commit API request
-		const commitRequest = {
-			url: `${GITLAB_URL}/api/v4/projects/${selectedRepo.id}/repository/commits`,
-			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${accessToken}`,
-				'Content-Type': 'application/json'
-			},
-			body: {
-				branch: selectedRepo.default_branch || 'main',
-				commit_message: `Add post for ${dateFolder}`,
-				actions: actions
-			}
+		const commitData: CommitData = {
+			branch: selectedRepo.default_branch || 'main',
+			message: `Add post for ${dateFolder}`,
+			actions: actions
 		};
 
 		console.log('\n=== SINGLE COMMIT API REQUEST ===');
-		console.log('URL:', commitRequest.url);
-		console.log('Method:', commitRequest.method);
-		console.log('Headers:', commitRequest.headers);
-		console.log('Body:', commitRequest.body);
+		console.log('Commit data:', commitData);
 
 		console.log('\n=== ACTIONS ===');
 		actions.forEach((action, idx) => {
@@ -237,33 +220,9 @@
 			// Actually make the API call
 			statusMessage = 'Creating commit on GitLab...';
 
-			const response = await fetch(commitRequest.url, {
-				method: commitRequest.method,
-				headers: commitRequest.headers,
-				body: JSON.stringify(commitRequest.body)
-			});
+			const provider = getProvider('gitlab');
+			const result = await provider.createCommit(accessToken, selectedRepo.id, commitData);
 
-			if (!response.ok) {
-				const errorData = await response.json();
-				console.error('GitLab API Error:', errorData);
-				// Create detailed error message with all available information
-				let detailedError = `API call failed (Status ${response.status})`;
-				if (errorData.message) {
-					detailedError += `\n${errorData.message}`;
-				}
-				if (errorData.error) {
-					detailedError += `\nError: ${errorData.error}`;
-				}
-				if (errorData.error_description) {
-					detailedError += `\nDescription: ${errorData.error_description}`;
-				}
-				// Include full error object as JSON for debugging
-				const errorObj = new Error(detailedError);
-				(errorObj as any).fullResponse = errorData;
-				throw errorObj;
-			}
-
-			const result = await response.json();
 			console.log('\n=== COMMIT SUCCESSFUL ===');
 			console.log('Commit ID:', result.id);
 			console.log('Commit URL:', result.web_url);

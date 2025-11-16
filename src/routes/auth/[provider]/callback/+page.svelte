@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import { page } from '$app/stores';
 	import { authStore } from '$lib/auth/store';
 	import { getProvider } from '$lib/providers';
 
@@ -19,6 +20,14 @@
 	onMount(async () => {
 		try {
 			debugInfo.push({ step: 'Starting auth callback', time: new Date().toISOString() });
+
+			// Get the provider from the URL
+			const providerName = $page.params.provider as 'gitlab' | 'github';
+			debugInfo.push({ step: 'Provider', provider: providerName });
+
+			if (providerName !== 'gitlab' && providerName !== 'github') {
+				throw new Error(`Invalid provider: ${providerName}`);
+			}
 
 			// Get URL parameters
 			const params = new URLSearchParams(window.location.search);
@@ -64,7 +73,7 @@
 			debugInfo.push({ step: 'Token exchange starting' });
 
 			// Get the provider
-			const provider = getProvider('gitlab');
+			const provider = getProvider(providerName);
 
 			// Exchange authorization code for tokens using PKCE
 			let tokenData;
@@ -89,7 +98,7 @@
 
 			// Store authentication in auth store
 			authStore.setAuth(
-				'gitlab',
+				providerName,
 				tokenData.access_token,
 				tokenData.refresh_token || null,
 				userInfo
@@ -143,7 +152,7 @@
 
 <div class="container">
 	<div class="header">
-		<h1>GitLab OAuth Callback</h1>
+		<h1>OAuth Callback</h1>
 		<button class="logout-btn" onclick={logout}>Logout</button>
 	</div>
 

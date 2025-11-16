@@ -1,50 +1,39 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { GitLab, generateCodeVerifier, generateState } from 'arctic';
 	import { base } from '$app/paths';
-
-	// GitLab OAuth Configuration from environment variables
-	const GITLAB_CLIENT_ID = import.meta.env.VITE_GITLAB_CLIENT_ID;
-	const GITLAB_URL = import.meta.env.VITE_GITLAB_URL;
-	const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI;
-
-	// Initialize Arctic GitLab client
-	const gitlab = new GitLab(GITLAB_URL, GITLAB_CLIENT_ID, null, REDIRECT_URI);
+	import { authStore } from '$lib/auth/store';
+	import { getProvider, generateCodeVerifier, generateState } from '$lib/providers';
 
 	let isLoggedIn = false;
 	let userInfo: any = null;
 	let loading = true;
 
 	onMount(async () => {
+		// Load auth state from sessionStorage
+		authStore.loadFromStorage();
+
 		// Check if user has an access token
 		const accessToken = sessionStorage.getItem('gitlab_access_token');
 
 		if (accessToken) {
 			try {
+				const provider = getProvider('gitlab');
 				// Fetch user info to verify token is still valid
-				const response = await fetch(`${GITLAB_URL}/api/v4/user`, {
-					headers: {
-						Authorization: `Bearer ${accessToken}`
-					}
-				});
-
-				if (response.ok) {
-					userInfo = await response.json();
-					isLoggedIn = true;
-				} else {
-					// Token is invalid, clear it
-					sessionStorage.removeItem('gitlab_access_token');
-					sessionStorage.removeItem('gitlab_refresh_token');
-				}
+				userInfo = await provider.getUser(accessToken);
+				isLoggedIn = true;
 			} catch (err) {
 				console.error('Failed to fetch user info:', err);
+				// Token is invalid, clear it
+				authStore.logout();
 			}
 		}
 
 		loading = false;
 	});
 
-	async function loginWithGitLab() {
+	async function loginWithProvider(providerName: 'gitlab' | 'github') {
+		const provider = getProvider(providerName);
+
 		// Generate state for CSRF protection
 		const state = generateState();
 
@@ -55,26 +44,23 @@
 		sessionStorage.setItem('oauth_state', state);
 		sessionStorage.setItem('code_verifier', codeVerifier);
 
-		// Create authorization URL with PKCE using the OAuth2Client
-		const url = (gitlab as any).client.createAuthorizationURLWithPKCE(
-			(gitlab as any).authorizationEndpoint,
-			state,
-			0, // CodeChallengeMethod.S256
-			codeVerifier,
-			['api']  // Full API access (includes read and write)
-		);
+		// Create authorization URL (await because GitHub provider is async)
+		const url = await provider.createAuthUrl(state, codeVerifier);
 
-		// Redirect to GitLab
+		// Redirect to provider
 		window.location.href = url.toString();
 	}
 
-	function logout() {
-		// Clear all stored tokens and user info
-		sessionStorage.removeItem('gitlab_access_token');
-		sessionStorage.removeItem('gitlab_refresh_token');
-		sessionStorage.removeItem('oauth_state');
-		sessionStorage.removeItem('code_verifier');
+	function loginWithGitLab() {
+		loginWithProvider('gitlab');
+	}
 
+	function loginWithGitHub() {
+		loginWithProvider('github');
+	}
+
+	function logout() {
+		authStore.logout();
 		isLoggedIn = false;
 		userInfo = null;
 	}
@@ -105,7 +91,11 @@
 			</div>
 		</div>
 	{:else}
-		<button onclick={loginWithGitLab}>Login with GitLab</button>
+		<div class="login-buttons">
+			<button onclick={loginWithGitLab} class="btn-gitlab">Login with GitLab</button>
+			<!-- GitHub button hidden - requires backend proxy for CORS -->
+			<!-- <button onclick={loginWithGitHub} class="btn-github">Login with GitHub</button> -->
+		</div>
 	{/if}
 </div>
 
@@ -204,5 +194,28 @@
 
 	button.logout:hover {
 		background-color: #5a6268;
+	}
+
+	.login-buttons {
+		display: flex;
+		gap: 1rem;
+		justify-content: center;
+		flex-wrap: wrap;
+	}
+
+	.btn-gitlab {
+		background-color: #fc6d26;
+	}
+
+	.btn-gitlab:hover {
+		background-color: #e24329;
+	}
+
+	.btn-github {
+		background-color: #24292e;
+	}
+
+	.btn-github:hover {
+		background-color: #1b1f23;
 	}
 </style>

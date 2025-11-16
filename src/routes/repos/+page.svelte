@@ -2,15 +2,16 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
-
-	const GITLAB_URL = import.meta.env.VITE_GITLAB_URL;
+	import { authStore } from '$lib/auth/store';
+	import { getProvider } from '$lib/providers';
+	import type { Repo, FileTreeItem } from '$lib/providers/types';
 
 	let accessToken: string | null = null;
 	let loading = true;
-	let repositories: any[] = [];
+	let repositories: Repo[] = [];
 	let selectedRepoId: string = '';
-	let selectedRepo: any = null;
-	let fileTree: any[] = [];
+	let selectedRepo: Repo | null = null;
+	let fileTree: FileTreeItem[] = [];
 	let loadingFiles = false;
 
 	onMount(async () => {
@@ -24,18 +25,9 @@
 		}
 
 		try {
+			const provider = getProvider('gitlab');
 			// Fetch user's repositories
-			const response = await fetch(`${GITLAB_URL}/api/v4/projects?membership=true&per_page=100&order_by=last_activity_at`, {
-				headers: {
-					Authorization: `Bearer ${accessToken}`
-				}
-			});
-
-			if (!response.ok) {
-				throw new Error('Failed to fetch repositories');
-			}
-
-			repositories = await response.json();
+			repositories = await provider.listRepos(accessToken);
 			loading = false;
 		} catch (err) {
 			console.error('Error fetching repos:', err);
@@ -46,26 +38,14 @@
 	async function handleRepoSelect() {
 		if (!selectedRepoId || !accessToken) return;
 
-		selectedRepo = repositories.find(r => r.id.toString() === selectedRepoId.toString());
+		selectedRepo = repositories.find(r => r.id.toString() === selectedRepoId.toString()) || null;
 		loadingFiles = true;
 		fileTree = [];
 
 		try {
+			const provider = getProvider('gitlab');
 			// Fetch repository file tree
-			const response = await fetch(
-				`${GITLAB_URL}/api/v4/projects/${selectedRepoId}/repository/tree?recursive=false&per_page=100`,
-				{
-					headers: {
-						Authorization: `Bearer ${accessToken}`
-					}
-				}
-			);
-
-			if (!response.ok) {
-				throw new Error('Failed to fetch file tree');
-			}
-
-			fileTree = await response.json();
+			fileTree = await provider.getFileTree(accessToken, selectedRepoId);
 		} catch (err) {
 			console.error('Error fetching file tree:', err);
 		} finally {
@@ -151,8 +131,7 @@
 				<option value="">-- Choose a repository --</option>
 				{#each repositories as repo}
 					<option value={repo.id}>
-						{repo.path_with_namespace}
-						{#if repo.visibility === 'private'}(Private){/if}
+						{repo.full_name}
 					</option>
 				{/each}
 			</select>
