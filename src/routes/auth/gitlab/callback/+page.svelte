@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
-	import { page } from '$app/stores';
 	import { authStore } from '$lib/auth/store';
 	import { getProvider } from '$lib/providers';
 
@@ -21,13 +20,9 @@
 		try {
 			debugInfo.push({ step: 'Starting auth callback', time: new Date().toISOString() });
 
-			// Get the provider from the URL
-			const providerName = $page.params.provider as 'gitlab' | 'github';
+			// Static provider: GitLab
+			const providerName = 'gitlab';
 			debugInfo.push({ step: 'Provider', provider: providerName });
-
-			if (providerName !== 'gitlab' && providerName !== 'github') {
-				throw new Error(`Invalid provider: ${providerName}`);
-			}
 
 			// Get URL parameters
 			const params = new URLSearchParams(window.location.search);
@@ -152,7 +147,7 @@
 
 <div class="container">
 	<div class="header">
-		<h1>OAuth Callback</h1>
+		<h1>GitLab OAuth Callback</h1>
 		<button class="logout-btn" onclick={logout}>Logout</button>
 	</div>
 
