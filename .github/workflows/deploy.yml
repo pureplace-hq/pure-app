@@ -34,7 +34,7 @@ jobs:
           NODE_ENV: production
           VITE_GITLAB_CLIENT_ID: 5fde26315165f9a89846d982b6d40a7a9a0b8ec14e1cf2e5758935ac2e6b6596
           VITE_GITLAB_URL: https://gitlab.com
-          VITE_REDIRECT_URI: https://app.pure.place/auth/callback
+          VITE_GITLAB_REDIRECT_URI: https://app.pure.place/auth/gitlab/callback
         run: npm run build
 
       - name: Upload artifact
