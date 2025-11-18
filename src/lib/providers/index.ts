@@ -10,6 +10,8 @@ const gitlabClientId = import.meta.env.VITE_GITLAB_CLIENT_ID;
 const gitlabUrl = import.meta.env.VITE_GITLAB_URL;
 const gitlabRedirectUri = import.meta.env.VITE_GITLAB_REDIRECT_URI;
 
+console.log('GitLab redirect URI from env:', gitlabRedirectUri);
+
 if (gitlabClientId && gitlabUrl && gitlabRedirectUri) {
 	providers.set('gitlab', new GitLabProvider(gitlabClientId, gitlabUrl, gitlabRedirectUri));
 }
