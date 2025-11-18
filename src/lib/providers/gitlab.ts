@@ -163,13 +163,19 @@ export class GitLabProvider implements OAuthProvider {
 	}
 
 	async createCommit(token: string, repoId: string | number, commit: CommitData): Promise<any> {
+		const gitlabCommit = {
+			branch: commit.branch,
+			commit_message: commit.message,
+			actions: commit.actions
+		};
+
 		const response = await fetch(`${this.baseUrl}/api/v4/projects/${repoId}/repository/commits`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				Authorization: `Bearer ${token}`
 			},
-			body: JSON.stringify(commit)
+			body: JSON.stringify(gitlabCommit)
 		});
 
 		if (!response.ok) {
