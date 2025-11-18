@@ -181,7 +181,10 @@
 		updatedYml.posts.unshift(newPost);
 
 		const updatedYmlString = YAML.stringify(updatedYml);
-		const ymlBase64 = btoa(updatedYmlString);
+		// Use TextEncoder to handle Unicode characters properly
+		const ymlBase64 = btoa(
+			String.fromCharCode(...new TextEncoder().encode(updatedYmlString))
+		);
 
 		// Add pure.yml update action
 		actions.push({
