@@ -66,8 +66,10 @@
 				selectedRepo.default_branch || 'main'
 			);
 
-			// Decode base64 content
-			const content = atob(data.content);
+			// Decode base64 content using TextDecoder to handle Unicode properly
+			const binaryString = atob(data.content);
+			const bytes = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
+			const content = new TextDecoder().decode(bytes);
 			pureYmlContent = YAML.parse(content);
 			console.log('Loaded pure.yml:', pureYmlContent);
 		} catch (err) {
