@@ -51,30 +51,39 @@
 		postDatetime = now.toISOString().slice(0, 16);
 
 		// Fetch pure.yml file from the repository
-		await fetchPureYml();
-	});
-
-	async function fetchPureYml() {
-		if (!accessToken || !selectedRepo) return;
-
 		try {
-			const provider = getProvider('gitlab');
-			const data = await provider.getFile(
-				accessToken,
-				selectedRepo.id,
-				'pure.yml',
-				selectedRepo.default_branch || 'main'
-			);
-
-			// Decode base64 content using TextDecoder to handle Unicode properly
-			const binaryString = atob(data.content);
-			const bytes = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
-			const content = new TextDecoder().decode(bytes);
-			pureYmlContent = YAML.parse(content);
+			pureYmlContent = await fetchPureYml();
 			console.log('Loaded pure.yml:', pureYmlContent);
 		} catch (err) {
 			console.error('Error fetching pure.yml:', err);
+			errorMessage = 'Failed to load pure.yml configuration. Please try again.';
 		}
+	});
+
+	async function fetchPureYml(): Promise<any> {
+		if (!accessToken || !selectedRepo) {
+			throw new Error('Missing access token or repository');
+		}
+
+		const provider = getProvider('gitlab');
+		const data = await provider.getFile(
+			accessToken,
+			selectedRepo.id,
+			'pure.yml',
+			selectedRepo.default_branch || 'main'
+		);
+
+		// Decode base64 content using TextDecoder to handle Unicode properly
+		const binaryString = atob(data.content);
+		const bytes = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
+		const content = new TextDecoder().decode(bytes);
+		const parsed = YAML.parse(content);
+
+		if (!parsed || typeof parsed !== 'object') {
+			throw new Error('Invalid pure.yml format');
+		}
+
+		return parsed;
 	}
 
 	function handleFileSelect(event: Event) {
@@ -167,8 +176,18 @@
 			imageObjects.push(imageObj);
 		}
 
-		// Prepare pure.yml update
-		const updatedYml = { ...pureYmlContent };
+		// Re-fetch pure.yml to get the latest config before updating
+		statusMessage = 'Fetching latest configuration...';
+		let latestConfig;
+		try {
+			latestConfig = await fetchPureYml();
+			console.log('Re-fetched latest pure.yml:', latestConfig);
+		} catch (err) {
+			throw new Error(`Failed to fetch latest pure.yml: ${err.message}`);
+		}
+
+		// Prepare pure.yml update with latest config
+		const updatedYml = { ...latestConfig };
 		if (!updatedYml.posts) {
 			updatedYml.posts = [];
 		}
